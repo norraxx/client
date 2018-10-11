@@ -55,7 +55,7 @@ class ConnectivityDialog(object):
             QInputDialog.getMultiLineText(self.dialog, "ICE adapter state", "", pprint.pformat(self.status, width=-1))
 
     def getStatus(self):
-        self.client.call("status", callback_result=self.onStatus)
+        self.client.call("status", callback_result=self.client.onStatus)
 
     def onGpgnetMessage(self, *unused):
         self.getStatus()
@@ -64,7 +64,8 @@ class ConnectivityDialog(object):
         self.status = status
         self.dialog.label_version.setText(str(status["version"]))
         self.dialog.label_rpc_port.setText(str(status["options"]["rpc_port"]))
-        self.dialog.label_log_file.setText(str(status["options"]["log_file"]))
+        if "log_file" in status["options"]:
+            self.dialog.label_log_file.setText(str(status["options"]["log_file"]))
         self.dialog.label_connected.setText(str(status["gpgnet"]["connected"]))
         self.dialog.label_gamestate.setText(str(status["gpgnet"]["game_state"]))
 

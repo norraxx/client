@@ -3,6 +3,7 @@ from decorators import with_logger
 from connectivity.JsonRpcTcpClient import JsonRpcTcpClient
 import client
 from client.connection import ConnectionState
+import json
 
 @with_logger
 class IceAdapterClient(JsonRpcTcpClient):
@@ -55,6 +56,10 @@ class IceAdapterClient(JsonRpcTcpClient):
         self.call("status", callback_result=self.onStatus)
 
     def onStatus(self, status):
+        if type(status) is str:
+            status = json.loads(status)
+        if "gpgpnet" in status: #issue in current java-ice-adapter
+            status["gpgnet"] = status["gpgpnet"]
         self.statusChanged.emit(status)
 
     def onLobbyConnected(self):
