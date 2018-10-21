@@ -76,7 +76,7 @@ class GameSession(QObject):
     def close(self):
         if self.ice_adapter_client:
             try:
-                self.ice_adapter_client.call("quit")
+                self.ice_adapter_client.call("quit", blocking=True)
             except RuntimeError:
                 pass
             self.ice_adapter_client.close()

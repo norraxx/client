@@ -879,11 +879,6 @@ class ClientWindow(FormClass, BaseClass):
             self.lobby_connection.disconnect_()
 
         # Close connectivity dialog
-        # Close game session (and stop faf-ice-adapter.exe)
-        if getattr(self, "game_session", False):
-            self.game_session.close()
-
-        # Close connectivity dialog
         if self.connectivity_dialog is not None:
             self.connectivity_dialog.close()
             self.connectivity_dialog = None

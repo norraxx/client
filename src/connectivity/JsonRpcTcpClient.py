@@ -129,7 +129,7 @@ class JsonRpcTcpClient(QObject):
                         return self.processBuffer(remaining_buf.strip())
         return buf
 
-    def call(self, method, args=[], callback_result=None, callback_error=None):
+    def call(self, method, args=[], callback_result=None, callback_error=None, blocking=False):
         if self.socket.state() != QAbstractSocket.ConnectedState:
             raise RuntimeError("Not connected to the JSONRPC server.")
         rpcObject = {
@@ -145,3 +145,5 @@ class JsonRpcTcpClient(QObject):
             self.nextid += 1
         self._logger.debug("sending JSONRPC object {}".format(rpcObject))
         self.socket.write(json.dumps(rpcObject).encode('utf8') + b'\n')
+        if blocking:
+            self.socket.waitForBytesWritten()
