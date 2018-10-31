@@ -23,7 +23,7 @@ class IceAdapterClient(JsonRpcTcpClient):
         self._logger.debug("onIceMsg {} {} {}".format(localId, remoteId, iceMsg))
         if client.instance.lobby_connection.state == ConnectionState.CONNECTED:
             self.game_session.send("IceMsg", [remoteId, iceMsg])
-        else:
+        elif type(iceMsg) is dict and "type" in iceMsg:
             if iceMsg["type"] != "candidate":
                 self.iceMsgCache.clear()
             self.iceMsgCache.append((remoteId, iceMsg))
