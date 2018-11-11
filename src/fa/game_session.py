@@ -1,4 +1,4 @@
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtCore import QObject, pyqtSignal, QCoreApplication
 from enum import IntEnum
 
 import client
@@ -56,14 +56,19 @@ class GameSession(QObject):
 
         self._relay_port = 0
 
-        #start the faf-ice-adapter process
+        self.ice_adapter_process = None
+        self.ice_adapter_client = None
+        self.ice_servers_poller = None
+
+    def startIceAdapter(self):
         self.ice_adapter_process = IceAdapterProcess(player_id=self.player_id,
                                                      player_login=self.player_login)
         self.ice_adapter_client = IceAdapterClient(game_session=self)
         self.ice_adapter_client.statusChanged.connect(self.onIceAdapterStarted)
         self.ice_adapter_client.connect_("127.0.0.1", self.ice_adapter_process.rpc_port())
+        while self._relay_port is 0:
+            QCoreApplication.processEvents()
 
-        self.ice_servers_poller = None
 
     def onIceAdapterStarted(self, status):
         self._relay_port = status["gpgnet"]["local_port"]
@@ -73,7 +78,7 @@ class GameSession(QObject):
                                                    ice_adapter_client=self.ice_adapter_client,
                                                    lobby_connection=client.instance.lobby_connection)
 
-    def close(self):
+    def closeIceAdapter(self):
         if self.ice_adapter_client:
             try:
                 self.ice_adapter_client.call("quit", blocking=True)
@@ -84,6 +89,7 @@ class GameSession(QObject):
         if self.ice_adapter_process:
             self.ice_adapter_process.close()
             self.ice_adapter_process = None
+        self._relay_port = 0
 
     @property
     def relay_port(self):
@@ -176,3 +182,4 @@ class GameSession(QObject):
         self.game_visibility = None
         self.game_map = None
         self.game_password = None
+        self.closeIceAdapter()

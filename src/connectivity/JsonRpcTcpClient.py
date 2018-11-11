@@ -20,10 +20,15 @@ class JsonRpcTcpClient(QObject):
         self.callbacks_error = {}
         self.buffer = b''
 
-    def connect_(self, host, port):
+    def connect_(self, host, port, blocking=False):
         self.host = host
         self.port = port
         self.socket.connectToHost(host, port)
+        if blocking:
+            self.socket.waitForConnected(5000)
+
+    def isConnected(self):
+        return self.socket.state() == QAbstractSocket.ConnectedState
 
     @QtCore.pyqtSlot(QAbstractSocket.SocketError)
     def onSocketError(self, error):

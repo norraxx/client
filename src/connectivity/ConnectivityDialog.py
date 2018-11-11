@@ -55,7 +55,8 @@ class ConnectivityDialog(object):
             QInputDialog.getMultiLineText(self.dialog, "ICE adapter state", "", pprint.pformat(self.status, width=-1))
 
     def getStatus(self):
-        self.client.call("status", callback_result=self.client.onStatus)
+        if self.client.isConnected():
+            self.client.call("status", callback_result=self.client.onStatus)
 
     def onGpgnetMessage(self, *unused):
         self.getStatus()

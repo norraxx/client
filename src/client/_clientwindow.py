@@ -885,7 +885,7 @@ class ClientWindow(FormClass, BaseClass):
 
         # Close game session (and stop faf-ice-adapter.exe)
         if self.game_session is not None:
-            self.game_session.close()
+            self.game_session.closeIceAdapter()
             self.game_session = None
 
         # Terminate local ReplayServer
@@ -1068,9 +1068,11 @@ class ClientWindow(FormClass, BaseClass):
 
     @QtCore.pyqtSlot()
     def connectivityDialog(self):
-        if self.game_session is not None:
+        if self.game_session is not None and self.game_session.ice_adapter_client is not None:
             self.connectivity_dialog = ConnectivityDialog(self.game_session.ice_adapter_client)
             self.connectivity_dialog.show()
+        else:
+            QtWidgets.QMessageBox().information(self, "No game", "The connectivity window is only available during the game.")
 
     @QtCore.pyqtSlot()
     def linkAbout(self):
@@ -1418,6 +1420,8 @@ class ClientWindow(FormClass, BaseClass):
         self.lobby_connection.send(msg)
 
     def handle_game_launch(self, message):
+
+        self.game_session.startIceAdapter()
 
         logger.info("Handling game_launch via JSON " + str(message))
 
