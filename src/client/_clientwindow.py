@@ -1367,7 +1367,6 @@ class ClientWindow(FormClass, BaseClass):
 
         util.crash.CRASH_REPORT_USER = self.login
 
-
         self.updateOptions()
 
         self.authorized.emit(self.me)
@@ -1375,9 +1374,7 @@ class ClientWindow(FormClass, BaseClass):
         if self.game_session is None:
             self.game_session = GameSession(player_id=message["id"], player_login=message["login"])
         elif self.game_session.game_uid != None:
-            self.lobby_connection.send({'command': 'restore_game_session',
-                                        'game_id': self.game_session.game_uid})
-
+            self.lobby_connection.send({'command': 'restore_game_session', 'game_id': self.game_session.game_uid})
 
         self.game_session.gameFullSignal.connect(self.game_full)
 

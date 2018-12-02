@@ -1,15 +1,44 @@
-from decorators import with_logger
-from PyQt5.QtCore import QProcess
+import os
+import subprocess
+import sys
+from threading import Thread
+from time import sleep
+
+import fafpath
 from PyQt5.QtNetwork import QTcpServer, QHostAddress
 from PyQt5.QtWidgets import QMessageBox
-import os
-import sys
 from config import Settings
-import fafpath
-from typing import List
+from decorators import with_logger
 
-if sys.platform != 'win32':
-    from distutils.spawn import find_executable
+
+class IceAdapterLogger(Thread):
+    def __init__(self, ice_adapter_process, logger_):
+        super(IceAdapterLogger, self).__init__()
+        self.ice_adapter_process = ice_adapter_process
+        self._logger = logger_
+
+    def run(self):
+        while self.ice_adapter_process and self.ice_adapter_process.poll() is None:
+            try:
+                stdout_data, stderr_data = self.ice_adapter_process.communicate(timeout=.1)
+                for row in str(stdout_data).splitlines():
+                    self._logger.info("ICE: " + row)
+                for row in str(stderr_data).splitlines():
+                    self._logger.info("ICE ERROR: " + row)
+            except subprocess.TimeoutExpired:
+                pass
+            finally:
+                sleep(.1)
+
+        self.on_exit(self.ice_adapter_process.poll())
+
+    def on_exit(self, code):
+        if code:
+            self._logger.error("the ICE crashed")
+            QMessageBox.critical(None, "ICE adapter error", "The ICE adapter crashed. Please refaf.")
+
+        self._logger.debug("The ICE adapter closed with exit code 0")
+
 
 @with_logger
 class IceAdapterProcess(object):
@@ -21,63 +50,49 @@ class IceAdapterProcess(object):
         self._rpc_server_port = s.serverPort()
         s.close()
 
+        args = []
         if sys.platform == 'win32':
             exe_path = os.path.join(fafpath.get_libdir(), "ice-adapter", "faf-ice-adapter.exe")
         else:  # Expect it to be in PATH already
-            exe_path = "faf-ice-adapter"
+            exe_path = "java"
+            args = ["-jar", "{}".format(os.path.join(fafpath.get_libdir(), "ice-adapter", "faf-ice-adapter.jar"))]
 
-        self.ice_adapter_process = QProcess()
-        args = ["--id", str(player_id),
-                "--login", player_login,
-                "--rpc-port", str(self._rpc_server_port),
-                "--gpgnet-port", "0",
-                "--log-level" , "debug",
-                "--log-directory", Settings.get('client/logs/path', type=str)]
+        args.extend([
+            "--id", str(player_id),
+            "--login", player_login,
+            "--rpc-port", str(self._rpc_server_port),
+            "--gpgnet-port", "0",
+            "--log-level", "debug",
+            "--debug-window",
+            "--log-directory", Settings.get('client/logs/path', type=str),
+        ])
+
         if Settings.contains('iceadapter/args'):
             args += Settings.get('iceadapter/args', "", type=str).split(" ")
 
+        # print("running ice adapter with {} {}".format(exe_path, " ".join(args)))
         self._logger.debug("running ice adapter with {} {}".format(exe_path, " ".join(args)))
-        self.ice_adapter_process.start(exe_path, args)
+        self.ice_adapter_process = subprocess.Popen([exe_path, *args], stdout=sys.stdout, stderr=sys.stderr)
 
         # wait for the first message which usually means the ICE adapter is listening for JSONRPC connections
-        if not self.ice_adapter_process.waitForStarted(5000):
+        if not self.ice_adapter_process.pid:
             self._logger.error("error starting the ice adapter process")
             QMessageBox.critical(None, "ICE adapter error", "The ICE adapter did not start. Please refaf.")
 
-        self.ice_adapter_process.readyReadStandardOutput.connect(self.on_log_ready)
-        self.ice_adapter_process.readyReadStandardError.connect(self.on_error_ready)
-        self.ice_adapter_process.finished.connect(self.on_exit)
-
-    def on_log_ready(self):
-        for line in str(self.ice_adapter_process.readAllStandardOutput()).splitlines():
-            self._logger.debug("ICE: " + line)
-
-    def on_error_ready(self):
-        for line in str(self.ice_adapter_process.readAllStandardError()).splitlines():
-            self._logger.debug("ICEERROR: " + line)
-
-    def on_exit(self, code, status):
-        if status == QProcess.CrashExit:
-            self._logger.error("the ICE crashed")
-            QMessageBox.critical(None, "ICE adapter error", "The ICE adapter crashed. Please refaf.")
-            return
-        if code != 0:
-            self._logger.error("The ICE adapter closed with error code", code)
-            QMessageBox.critical(None, "ICE adapter error", "The ICE adapter closed with error code {}. Please refaf.".format(code))
-            return
-        else:
-            self._logger.debug("The ICE adapter closed with exit code 0")
+        IceAdapterLogger(self.ice_adapter_process, self._logger).start()
 
     def rpc_port(self):
         return self._rpc_server_port
 
     def close(self):
-        if self.ice_adapter_process.state() == QProcess.Running:
+        if self.ice_adapter_process and self.ice_adapter_process.poll() is None:
             self._logger.info("Waiting for ice adapter process shutdown")
-            if not self.ice_adapter_process.waitForFinished(300):
-                if self.ice_adapter_process.state() == QProcess.Running:
-                    self._logger.error("Terminating ice adapter process")
-                    self.ice_adapter_process.terminate()
-                    if not self.ice_adapter_process.waitForFinished(300):
-                        self._logger.error("Killing ice adapter process")
-                        self.ice_adapter_process.kill()
+            try:
+                self.ice_adapter_process.wait(300)
+            except subprocess.TimeoutExpired:
+                self.ice_adapter_process.terminate()
+                try:
+                    self.ice_adapter_process.wait(300)
+                except subprocess.TimeoutExpired:
+                    self._logger.error("Killing ice adapter process")
+                    self.ice_adapter_process.kill()

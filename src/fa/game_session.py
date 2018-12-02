@@ -69,7 +69,6 @@ class GameSession(QObject):
         while self._relay_port is 0:
             QCoreApplication.processEvents()
 
-
     def onIceAdapterStarted(self, status):
         self._relay_port = status["gpgnet"]["local_port"]
         logger.info("ICE adapter started an listening on port {} for GPGNet connections".format(self._relay_port))
